@@ -24,6 +24,8 @@ WORKDIR /home/ubuntu
 ## Finally, copy over code files
 COPY . /home/ubuntu/
 
+ENTRYPOINT [ "/bin/bash" ]
+
 ## Build with
 ##   sudo docker build -t tmle-phacking .
 ##
