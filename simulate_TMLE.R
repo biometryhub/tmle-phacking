@@ -16,7 +16,7 @@ library(ranger)
 require(parallel)
 
 
-RNG_SEED <- 2022
+RNG_SEED <- 612022
 
 
 # Ancillary functions ##########################################################
@@ -119,8 +119,8 @@ run_compute <- function(N, output_dir) {
   
   # Super learners, used within tmle::tmle
   sl_libs_ALL <- c(
-    'SL.glm', 'SL.glm.interaction', 'SL.bayesglm'#, 'SL.rpart', 'SL.rpartPrune',
-    #'SL.ranger', 'SL.glmnet', 'SL.gam'
+    'SL.glm', 'SL.glm.interaction', 'SL.bayesglm', 'SL.rpart', 'SL.rpartPrune',
+    'SL.ranger', 'SL.glmnet', 'SL.gam'
   )
   
   # Get all combinations of superlearners
@@ -143,8 +143,8 @@ run_compute <- function(N, output_dir) {
     index_set <- list_comb_indx[[i]]
     
     for (j in 1:ncol(index_set)) {
-      index_vec <- as.vector(index_set[ , j])
-      SL_lib_local <- sl_libs_ALL[index_vec]
+      index_vector <- as.vector(index_set[ , j])
+      SL_lib_local <- sl_libs_ALL[index_vector]
       
       SL_library_char_vec[SL_index] <- paste(SL_lib_local, collapse = '_')
       list_ALL_SLs[[SL_index]] <- SL_lib_local
@@ -154,18 +154,15 @@ run_compute <- function(N, output_dir) {
   
   # Pre-define random seeds to run through
   KK <- 10000
-  KK <- 50
   set.seed(RNG_SEED)
   rs_vec <- sample(1:10000000, KK, replace = FALSE)
   
   cores <- detectCores() - 1
-  cores <- 1
   log_lines(paste0('Parallel cores avaliable: ', detectCores()))
   log_lines(paste0('Parallel cores to be used: ', cores))
   
   vars_explanatory <- c('w1', 'w2', 'w3', 'w4')
   list_all_DTs <- vector('list', mm)
-  names_for_list_all_DTs <- vector('character', mm)
   DT_index <- 1
   
   Y <- ObsData_local$Y
@@ -200,8 +197,8 @@ run_compute <- function(N, output_dir) {
   # Close file connections, save workspace variables and done.
   close(log_file)
   save(
-    list_all_DTs, names_for_list_all_DTs, 
-    ObsData_ALL, index_vec, sl_libs_ALL, rs_vec, session_info, 
+    list_all_DTs,SL_library_char_vec, 
+    ObsData_ALL, index_vec, sl_libs_ALL, rs_vec, N, session_info, 
     file = file.path(output_dir, 'r_out_ALL_outputs.RData')
   )
 }
