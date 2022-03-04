@@ -16,7 +16,8 @@
 # ancillary libraries
 # FIXME: Seem to get apt race condition on cloud-init, so (for now)
 #        just wait 30 seconds or so until it has 'finished', then clear
-#        out the daily upgrade timers.
+#        out the daily upgrade timers, and add a sleep buffer between
+#        the apt upgrade and the Docker installation.
 runcmd:
  - [ sh, -c, "sleep 30" ]
  - [ systemctl, stop, apt-daily.timer ]
@@ -25,6 +26,7 @@ runcmd:
  - [ rm, "/var/lib/systemd/timers/stamp-apt-daily-upgrade.timer" ]
  - [ sh, -c, "apt update && apt -y upgrade && apt install -y curl git" ]
  - [ curl, -fsSL, "https://get.docker.com", -o, get-docker.sh ]
+ - [ sh, -c, "sleep 10" ]
  - [ sh, ./get-docker.sh ]
  - [ runuser, -l, ubuntu, -c, "cd ~ && git clone https://github.com/biometryhub/tmle-phacking" ]
  - [ docker, build, -t, "tmle-phacking", "/home/ubuntu/tmle-phacking" ]
