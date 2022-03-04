@@ -15,9 +15,14 @@
 # from git and setting up Rocker container for Rv4.1.2 and all
 # ancillary libraries
 # FIXME: Seem to get apt race condition on cloud-init, so (for now)
-#        just wait 30 seconds or so until it's finished.
+#        just wait 30 seconds or so until it has 'finished', then clear
+#        out the daily upgrade timers.
 runcmd:
  - [ sh, -c, "sleep 30" ]
+ - [ systemctl, stop, apt-daily.timer ]
+ - [ systemctl, stop, apt-daily-upgrade.timer ]
+ - [ rm, "/var/lib/systemd/timers/stamp-apt-daily.timer" ]
+ - [ rm, "/var/lib/systemd/timers/stamp-apt-daily-upgrade.timer" ]
  - [ sh, -c, "apt update && apt -y upgrade && apt install -y curl git" ]
  - [ curl, -fsSL, "https://get.docker.com", -o, get-docker.sh ]
  - [ sh, ./get-docker.sh ]
