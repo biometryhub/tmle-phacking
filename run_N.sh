@@ -8,11 +8,14 @@
 # sample size in the R code.
 #
 # Code author: Russell A. Edson, Biometry Hub
-# Date last modified: 03/03/2022
+# Date last modified: 04/03/2022
 N="$1"
 OUTPUT_DIR="${HOME}/run/output_${N}"
 LOG="${OUTPUT_DIR}/shell_log.txt"
 R_SCRIPT="${HOME}/run/simulate_TMLE.R"
 
-sudo nohup docker exec -d tmle-phacking sh -c \
+sudo docker run --name tmle-phacking-run -it -d tmle-phacking \
+  -v "$(pwd)":/home/ubuntu/run
+sudo docker exec tmle-phacking-run sh -c "mkdir ${OUTPUT_DIR}"
+sudo nohup docker exec tmle-phacking-run sh -c \
   "R -e \"source('${R_SCRIPT}'); run_compute(${N}, ${OUTPUT_DIR})\" 2&>1 >> LOG"

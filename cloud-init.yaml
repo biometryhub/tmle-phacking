@@ -4,7 +4,7 @@
 # for Max's paper.
 #
 # Code author: Russell A. Edson, Biometry Hub
-# Date last modified: 02/03/2022
+# Date last modified: 04/03/2022
 
 # Update repos and upgrade to latest (Ubuntu 20.04 LTS)
 # FIXME: This causes an apt race condition, apparently?
@@ -23,3 +23,4 @@ runcmd:
  - [ sh, ./get-docker.sh ]
  - [ runuser, -l, ubuntu, -c, "cd ~ && git clone https://github.com/biometryhub/tmle-phacking" ]
  - [ docker, build, -t, "tmle-phacking", "/home/ubuntu/tmle-phacking" ]
+ - [ sh, -c, "chmod ugo+x /home/ubuntu/tmle-phacking/run_N.sh" ]
