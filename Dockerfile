@@ -2,7 +2,7 @@
 # for Max's paper.
 #
 # Code author: Russell A. Edson, Biometry Hub
-# Date last modified: 02/03/2022
+# Date last modified: 03/03/2022
 
 ## Build atop Rocker r-ver:4.1.2
 FROM rocker/r-ver:4.1.2
@@ -21,14 +21,12 @@ RUN useradd -ms /bin/bash ubuntu
 USER ubuntu
 WORKDIR /home/ubuntu
 
-## Finally, copy over code files
-COPY . /home/ubuntu/
-
 ENTRYPOINT [ "/bin/bash" ]
 
 ## Build with
 ##   sudo docker build -t tmle-phacking .
 ##
-## Run with
-##   sudo docker run -it tmle-phacking
-## and then run the run_N.sh script for a given N.
+## Run it with current directory mounted to ~/run by
+##   sudo docker run -it tmle-phacking -v "$(pwd)":/home/ubuntu/run
+## and then execute the run_N.sh script for a given N to set the job
+## running.
