@@ -19,10 +19,10 @@ HOST_LOG="${HOST_OUT}/shell_log.txt"
 DOCKER_LOG="${DOCKER_OUT}/shell_log.txt"
 R_SCRIPT="${DOCKER_WD}/simulate_TMLE.R"
 
-sudo chmod -R ugo+rw "${HOST_WD}"
 mkdir "${HOST_OUT}"
 echo "$(uname -a)" >> "${HOST_LOG}"
 echo "$(lscpu)" >> "${HOST_LOG}"
+sudo chmod -R ugo+rw "${HOST_WD}"
 
 sudo docker run --name "tmle-phacking-run${N}" -it -d \
   -v "${HOST_WD}:${DOCKER_WD}" tmle-phacking
