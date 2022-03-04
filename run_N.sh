@@ -15,6 +15,9 @@ OUTPUT_DIR="${HOME}/run/output_${N}"
 LOG="${OUTPUT_DIR}/shell_log.txt"
 R_SCRIPT="${HOME}/run/simulate_TMLE.R"
 
+echo "$(uname -a)" >> "${LOG}"
+echo "$(lscpu)" >> "${LOG}"
+
 sudo chmod -R ugo+rw "${GIT_DIR}"
 sudo docker run --name "tmle-phacking-run${N}" -it -d \
   -v "${GIT_DIR}:${HOME}/run" tmle-phacking
