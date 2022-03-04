@@ -10,13 +10,14 @@
 # Code author: Russell A. Edson, Biometry Hub
 # Date last modified: 04/03/2022
 N="$1"
+GIT_DIR="${HOME}/tmle-phacking"
 OUTPUT_DIR="${HOME}/run/output_${N}"
 LOG="${OUTPUT_DIR}/shell_log.txt"
 R_SCRIPT="${HOME}/run/simulate_TMLE.R"
 
-sudo chmod -R ugo+rw "${HOME}"
+sudo chmod -R ugo+rw "${GIT_DIR}"
 sudo docker run --name "tmle-phacking-run${N}" -it -d \
-  -v /home/ubuntu/tmle-phacking:/home/ubuntu/run tmle-phacking
+  -v "${GIT_DIR}:${HOME}/run" tmle-phacking
 sudo docker exec "tmle-phacking-run${N}" sh -c "mkdir ${OUTPUT_DIR}"
 sudo nohup docker exec "tmle-phacking-run${N}" sh -c \
   "R -e \"source('${R_SCRIPT}'); run_compute(${N}, '${OUTPUT_DIR}')\" 2&>1 >> ${LOG}"
