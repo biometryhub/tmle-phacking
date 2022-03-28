@@ -3,13 +3,28 @@
 # specified N sample size (to distribute the computations across
 # machines).
 #
-# Run with ./run_N.sh 50
-# Where 50 (or 100, or 500, or whatever) is the N to use for the
-# sample size in the R code.
+# Run with ./run_N.sh -n 50 -s 1000
+# Where -n 50 (or 100, or 500, or whatever) specifies the N to use for the
+# sample size in the R code, and -s 1000 (or whatever) specifies the
+# total number of seeds to use for the run.
 #
 # Code author: Russell A. Edson, Biometry Hub
-# Date last modified: 04/03/2022
-N="$1"
+# Date last modified: 28/03/2022
+print_usage() {
+  printf "Usage: run_N -n <sample_size> -s <total_seeds>, e.g. run_N.sh 50 1000"
+}
+
+N=""
+SEEDS=""
+while getopts 'n:s:' ARG; do
+  case "${ARG}" in
+    n) N="${OPTARG}" ;;
+    s) S="${OPTARG}" ;;
+    *) print_usage
+       exit 1 ;;
+  esac
+done
+
 HOST_WD="${HOME}/tmle-phacking"
 DOCKER_WD="${HOME}/run"
 OUTPUT_DIR="output_${N}"
@@ -27,4 +42,4 @@ sudo chmod -R ugo+rw "${HOST_WD}"
 sudo docker run --name "tmle-phacking-run${N}" -it -d \
   -v "${HOST_WD}:${DOCKER_WD}" tmle-phacking
 sudo nohup docker exec "tmle-phacking-run${N}" sh -c \
-  "R -e \"source('${R_SCRIPT}'); run_compute(${N}, '${DOCKER_OUT}')\" 2&>1 >> ${DOCKER_LOG}"
+  "R -e \"source('${R_SCRIPT}'); run_compute(${N}, '${DOCKER_OUT}', ${SEEDS})\" 2&>1 >> ${DOCKER_LOG}"

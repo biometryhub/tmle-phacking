@@ -17,7 +17,6 @@ require(parallel)
 
 
 RNG_SEED <- 612022
-TOTAL_SEEDS <- 100000
 SUPERLEARNERS <- c(
   'SL.glm', 'SL.glm.interaction', 'SL.bayesglm', 'SL.rpart', 'SL.rpartPrune',
   'SL.ranger', 'SL.glmnet', 'SL.gam'
@@ -98,7 +97,7 @@ tmle_rnd_seeds <- function(rnd_seeds = 1, Y, A, W, family_c = 'binomial', SL_lib
 
 # function to parallelize (across VMs/instances) computation of estimates
 # based on a given sample size N and a specified output directory
-run_compute <- function(N, output_dir) {
+run_compute <- function(N, output_dir = '.', total_seeds = 10000) {
   # Log process running time
   start_time <- proc.time()
   log_file <- file(file.path(output_dir, 'R_log.txt'), 'w')
@@ -166,7 +165,7 @@ run_compute <- function(N, output_dir) {
   }
   
   # Pre-define random seeds to run through
-  KK <- TOTAL_SEEDS
+  KK <- total_seeds
   set.seed(RNG_SEED)
   rs_vec <- sample(1:10000000, KK, replace = FALSE)
   
@@ -220,7 +219,7 @@ run_compute <- function(N, output_dir) {
   save(
     list_all_DTs, list_all_TMLEs, SL_library_char_vec, True_ATE, True_MOR, 
     ATE_hat, MOR_hat, ObsData_ALL, sample_indices, sl_libs_ALL, rs_vec, N, 
-    session_info, RNG_SEED, TOTAL_SEEDS, SUPERLEARNERS, CORES_NUM,
+    session_info, RNG_SEED, total_seeds, SUPERLEARNERS, CORES_NUM,
     file = file.path(output_dir, 'r_out_ALL_outputs.RData')
   )
 }
