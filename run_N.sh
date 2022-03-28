@@ -11,7 +11,8 @@
 # Code author: Russell A. Edson, Biometry Hub
 # Date last modified: 28/03/2022
 print_usage() {
-  printf "Usage: run_N -n <sample_size> -s <total_seeds>, e.g. run_N.sh 50 1000"
+  echo "Usage: run_N -n <sample_size> -s <total_seeds>"
+  echo "  e.g. run_N.sh -n 50 -s 1000"
 }
 
 N=""
