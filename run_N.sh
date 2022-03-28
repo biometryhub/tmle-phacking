@@ -6,7 +6,7 @@
 # Run with ./run_N.sh -n 50 -s 1000
 # Where -n 50 (or 100, or 500, or whatever) specifies the N to use for the
 # sample size in the R code, and -s 1000 (or whatever) specifies the
-# total number of seeds to use for the run.
+# total number of seeds to use for the run (optional).
 #
 # Code author: Russell A. Edson, Biometry Hub
 # Date last modified: 28/03/2022
@@ -16,11 +16,11 @@ print_usage() {
 }
 
 N=""
-SEEDS=""
-while getopts 'n:s:' ARG; do
+SEEDS="10000"
+while getopts 'n:s::' ARG; do
   case "${ARG}" in
     n) N="${OPTARG}" ;;
-    s) S="${OPTARG}" ;;
+    s) SEEDS="${OPTARG}" ;;
     *) print_usage
        exit 1 ;;
   esac
