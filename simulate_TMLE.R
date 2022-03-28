@@ -3,7 +3,7 @@
 # A tutorial. Statistics in medicine, 37(16), 2530-2546.
 #
 # Code authors: Max Moldovan, Russell Edson (Biometry Hub)
-# Date last modified: 04/03/2022
+# Date last modified: 28/03/2022
 
 # Loading all libraries (per VM)
 library(data.table)
@@ -17,6 +17,12 @@ require(parallel)
 
 
 RNG_SEED <- 612022
+TOTAL_SEEDS <- 100000
+SUPERLEARNERS <- c(
+  'SL.glm', 'SL.glm.interaction', 'SL.bayesglm', 'SL.rpart', 'SL.rpartPrune',
+  'SL.ranger', 'SL.glmnet', 'SL.gam'
+)
+CORES_NUM <- detectCores() - 1
 
 
 # Ancillary functions ##########################################################
@@ -41,35 +47,50 @@ generateData <- function(n) {
 
 
 # function to parallelise the computations across a set of alternative random seeds (the main function to parallelise)
-tmle_rnd_seeds <- function(rnd_seeds = 1, Y, A, W, family_c = 'binomial', SL_lib = 'SL.glm') {
+tmle_rnd_seeds <- function(rnd_seeds = 1, Y, A, W, family_c = 'binomial', SL_lib = 'SL.glm', tab_out = 'TAB') {
   # Input:
   # rnd_seeds is the random seed to be used, a single numeric or integer
   # Y, A, W, family_c and SL_lib are arguments in the tmle::tmle function
   
   # Output:
-  # A one row data.table reporting TMLE estimates, computational times etc.
+  # tab_out = "TAB": a one row data.table reporting TMLE estimates, computational times etc.
+  # tab_out = "ALL": the entire output from tmle::tmle
+  # tab_out = "BOTH": the entire output from tmle::tmle
   
-  # Version: v0.03
-  # Author: Max Moldovan (max.moldovan@gmail.com), 25 Feb 2022
+  # Version: v0.5
+  # Author: Max Moldovan (max.moldovan@gmail.com), 28 Mar 2022
   
   set.seed(rnd_seeds)
   ptm0 <- proc.time()
   TMLE <- tmle(Y = Y, A = A, W = W, family = family_c, Q.SL.library = SL_lib, g.SL.library = SL_lib)
   exec_time <- proc.time() - ptm0
-
-  dt_out <- data.table(ATEtmle = TMLE$estimates$ATE$psi,
-                       ATEtmle_low = TMLE$estimates$ATE$CI[1],
-                       ATEtmle_upp = TMLE$estimates$ATE$CI[2],
-                       ATEtmle_pval = TMLE$estimates$ATE$pvalue,
-                       MORtmle = TMLE$estimates$OR$psi,
-                       ATEtmle_low = TMLE$estimates$OR$CI[1],
-                       ATEtmle_upp = TMLE$estimates$OR$CI[2],
-                       ATEtmle_pval = TMLE$estimates$OR$pvalue, 
-                       random_seed = rnd_seeds,
-                       elapsed_time = as.vector(exec_time[3])
-  )
   
-  return(dt_out)
+  # Check output requirement
+  if (!tab_out %in% c('TAB', 'ALL', 'BOTH')) {
+    stop('Invalid output type specified')
+  } else if (tab_out == 'ALL') {
+    output <- TMLE
+  } else {
+    dt_out <- data.table(ATEtmle = TMLE$estimates$ATE$psi,
+                         ATEtmle_var = TMLE$estimates$ATE$var.psi,
+                         ATEtmle_low = TMLE$estimates$ATE$CI[1],
+                         ATEtmle_upp = TMLE$estimates$ATE$CI[2],
+                         ATEtmle_pval = TMLE$estimates$ATE$pvalue,
+                         MORtmle = TMLE$estimates$OR$psi,
+                         MORtmle_low = TMLE$estimates$OR$CI[1],
+                         MORtmle_upp = TMLE$estimates$OR$CI[2],
+                         MORtmle_pval = TMLE$estimates$OR$pvalue, 
+                         random_seed = rnd_seeds,
+                         elapsed_time = as.vector(exec_time[3])
+    )
+    
+    if (tab_out == 'TAB') {
+      output <- dt_out
+    } else {
+      output <- list(tab = dt_out, tmle = TMLE)
+    }
+  }
+  output
 }
 
 
@@ -84,11 +105,11 @@ run_compute <- function(N, output_dir) {
   log_lines <- function(lines) {
     cat(lines, sep = '\n', file = log_file, append = TRUE)
   }
-  
   log_lines(c('Start time:', capture.output(start_time), ''))
   
-  # Generate dataset (same seed, so this should be the exact same
-  # dataset across all of the VMs for different N)
+  # Generate dataset of observational data (used by all N, this has
+  # a constant runtime overhead of roughly 3 seconds or so ~ negligible
+  # compared to the main loop)
   set.seed(RNG_SEED)
   NN <- 5000000
   ObsData_ALL <- generateData(n = NN)
@@ -96,14 +117,15 @@ run_compute <- function(N, output_dir) {
   True_EY.0 <- mean(ObsData_ALL$Y.0)
   True_ATE <- True_EY.1 - True_EY.0
   True_MOR <- (True_EY.1*(1 - True_EY.0))/((1 - True_EY.1)*True_EY.0)
-  
   log_lines(paste0('TRUE ATE: ', True_ATE))
   log_lines(paste0('TRUE MOR: ', True_MOR))
   
-  # Sample data for the given N sample size
-  set.seed(RNG_SEED)
-  index_vec <- sample(1:NN, N, replace = FALSE)
-  ObsData_local <- ObsData_ALL[index_vec, ]
+  # Sample data for the given N sample size (offset by N so that 
+  # different N produce slightly different samples, but in a 
+  # deterministic way)
+  set.seed(RNG_SEED + N)
+  sample_indices <- sample(1:NN, N, replace = FALSE)
+  ObsData_local <- ObsData_ALL[sample_indices, ]
   m <- glm(Y ~ A + w1 + w2 + w3 + w4, family = binomial, data = ObsData_local)
   
   #Prediction for A, A = 1 and, A = 0
@@ -111,19 +133,14 @@ run_compute <- function(N, output_dir) {
   Q1W <- predict(m, newdata = data.frame(A = 1, ObsData_local[,c('w1','w2','w3','w4')]), type = 'response') 
   Q0W <- predict(m, newdata = data.frame(A = 0, ObsData_local[,c('w1','w2','w3','w4')]), type = 'response')
   
-  # Estimated mortality risk difference
+  # Estimated mortality risk difference, Marginal Odds Ratio (MOR)
   ATE_hat <- mean(Q1W - Q0W)
-  
-  # Estimated Marginal Odds Ratio (MOR)
   MOR_hat <- mean(Q1W)*(1 - mean(Q0W)) / ((1 - mean(Q1W))*mean(Q0W))
+  log_lines(paste0('ATE_hat: ', ATE_hat))
+  log_lines(paste0('MOR_hat: ', MOR_hat))
   
-  # Super learners, used within tmle::tmle
-  sl_libs_ALL <- c(
-    'SL.glm', 'SL.glm.interaction', 'SL.bayesglm', 'SL.rpart', 'SL.rpartPrune',
-    'SL.ranger', 'SL.glmnet', 'SL.gam'
-  )
-  
-  # Get all combinations of superlearners
+  # Get all combinations of Superlearners, used within tmle::tmle
+  sl_libs_ALL <- SUPERLEARNERS
   M <- length(sl_libs_ALL)
   list_comb_indx <- vector('list', M)
   mm <- 0
@@ -131,21 +148,17 @@ run_compute <- function(N, output_dir) {
     list_comb_indx[[i]] <- combn(1:M, i)
     mm <- mm + dim(list_comb_indx[[i]])[2]
   }
-  
   log_lines(paste0('Number of unique SuperLearners: ', M))
   log_lines(paste0('Number of SL combinations overall: ', mm))
   
   list_ALL_SLs <- vector('list', mm)
   SL_library_char_vec <- 1:mm*0
   SL_index <- 1
-
   for (i in 1:length(list_comb_indx)) {
     index_set <- list_comb_indx[[i]]
-    
     for (j in 1:ncol(index_set)) {
       index_vector <- as.vector(index_set[ , j])
       SL_lib_local <- sl_libs_ALL[index_vector]
-      
       SL_library_char_vec[SL_index] <- paste(SL_lib_local, collapse = '_')
       list_ALL_SLs[[SL_index]] <- SL_lib_local
       SL_index <- SL_index + 1
@@ -153,18 +166,19 @@ run_compute <- function(N, output_dir) {
   }
   
   # Pre-define random seeds to run through
-  KK <- 10000
+  KK <- TOTAL_SEEDS
   set.seed(RNG_SEED)
   rs_vec <- sample(1:10000000, KK, replace = FALSE)
   
-  cores <- detectCores() - 1
+  # Main loop computation (parallelised over multiple cores where possible)
+  cores <- CORES_NUM
   log_lines(paste0('Parallel cores avaliable: ', detectCores()))
-  log_lines(paste0('Parallel cores to be used: ', cores))
+  log_lines(paste0('Parallel cores specified to be used: ', cores))
   
   vars_explanatory <- c('w1', 'w2', 'w3', 'w4')
   list_all_DTs <- vector('list', mm)
+  list_all_TMLEs <- vector('list', mm)
   DT_index <- 1
-  
   Y <- ObsData_local$Y
   A <- ObsData_local$A
   W <- ObsData_local[ , ..vars_explanatory]
@@ -177,13 +191,20 @@ run_compute <- function(N, output_dir) {
       1:length(rs_vec), 
       function(j) {
         tmle_rnd_seeds(rnd_seeds = rs_vec[j], Y = Y, A = A, W = W, 
-                       family = 'binomial', SL_lib = SL_lib_local)
+                       family = 'binomial', SL_lib = SL_lib_local,
+                       tab_out = 'BOTH')
       },
       mc.cores = cores
     )
+    list_of_tabs <- lapply(list_out, `[[`, 'tab')
+    dt_out <- rbindlist(list_of_tabs)
+    # add "sample size/data set" specific estimate
+    dt_out <- cbind(ATE_hat, dt_out)
     
-    dt_out <- rbindlist(list_out)
+    list_of_tmles <- lapply(list_out, `[[`, 'tmle')
+    
     list_all_DTs[[DT_index]] <- dt_out
+    list_all_TMLEs[[DT_index]] <- list_of_tmles
     DT_index <- DT_index + 1
   }
   
@@ -197,8 +218,9 @@ run_compute <- function(N, output_dir) {
   # Close file connections, save workspace variables and done.
   close(log_file)
   save(
-    list_all_DTs,SL_library_char_vec, 
-    ObsData_ALL, index_vec, sl_libs_ALL, rs_vec, N, session_info, 
+    list_all_DTs, list_all_TMLEs, SL_library_char_vec, True_ATE, True_MOR, 
+    ATE_hat, MOR_hat, ObsData_ALL, sample_indices, sl_libs_ALL, rs_vec, N, 
+    session_info, RNG_SEED, TOTAL_SEEDS, SUPERLEARNERS, CORES_NUM,
     file = file.path(output_dir, 'r_out_ALL_outputs.RData')
   )
 }
