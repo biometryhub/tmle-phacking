@@ -49,4 +49,4 @@ sudo chmod -R ugo+rw "${HOST_WD}"
 sudo docker run --name "tmle-phacking-run${N}" -it -d \
   -v "${HOST_WD}:${DOCKER_WD}" tmle-phacking
 sudo nohup docker exec "tmle-phacking-run${N}" sh -c \
-  "R -e \"source('${R_SCRIPT}'); run_compute(${N}, '${DOCKER_OUT}', ${SEEDS})\" 2&>1 >> ${DOCKER_LOG}"
+  "R -e \"source('${R_SCRIPT}'); run_compute(${N}, '${DOCKER_OUT}', ${SEEDS})\" >>${DOCKER_LOG} 2>&1"
