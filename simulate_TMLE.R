@@ -207,7 +207,7 @@ run_compute <- function(N, output_dir = '.', total_seeds = 10000) {
     log_lines(
       c('', paste0('Finished SLcomb=', paste(SL_lib_local, collapse = '_')))
     )
-    log_lines('Execution time:', capture.output(intermediate_time))
+    log_lines(paste0('Execution time:', capture.output(intermediate_time)))
     log_lines(paste0('Memory usage: ', capture.output(pryr::mem_used())))
     save(
       SL_lib_local, dt_out, list_of_tmles,
