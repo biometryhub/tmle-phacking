@@ -186,9 +186,19 @@ run_compute <- function(N, output_dir = '.', total_seeds = 10000) {
     list_out <- mclapply(
       1:length(rs_vec), 
       function(j) {
-        tmle_rnd_seeds(rnd_seeds = rs_vec[j], Y = Y, A = A, W = W, 
-                       family = 'binomial', SL_lib = SL_lib_local,
-                       tab_out = 'BOTH')
+        tryCatch({
+            tmle_rnd_seeds(rnd_seeds = rs_vec[j], Y = Y, A = A, W = W, 
+                           family = 'binomial', SL_lib = SL_lib_local,
+                           tab_out = 'BOTH')
+          },
+          error = function(c) {
+            list(
+              'ERROR', 
+              seed = rs_vec[j], 
+              Y = Y, A = A, W = W, SL_lib = SL_lib_local  
+            )
+          }
+        )
       },
       mc.cores = cores
     )
