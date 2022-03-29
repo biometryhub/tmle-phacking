@@ -3,9 +3,10 @@
 # A tutorial. Statistics in medicine, 37(16), 2530-2546.
 #
 # Code authors: Max Moldovan, Russell Edson (Biometry Hub)
-# Date last modified: 28/03/2022
+# Date last modified: 29/03/2022
 
 # Loading all libraries (per VM)
+library(pryr)
 library(data.table)
 library(tmle)
 library(SuperLearner)
@@ -75,10 +76,6 @@ tmle_rnd_seeds <- function(rnd_seeds = 1, Y, A, W, family_c = 'binomial', SL_lib
                          ATEtmle_low = TMLE$estimates$ATE$CI[1],
                          ATEtmle_upp = TMLE$estimates$ATE$CI[2],
                          ATEtmle_pval = TMLE$estimates$ATE$pvalue,
-                         MORtmle = TMLE$estimates$OR$psi,
-                         MORtmle_low = TMLE$estimates$OR$CI[1],
-                         MORtmle_upp = TMLE$estimates$OR$CI[2],
-                         MORtmle_pval = TMLE$estimates$OR$pvalue, 
                          random_seed = rnd_seeds,
                          elapsed_time = as.vector(exec_time[3])
     )
@@ -204,6 +201,22 @@ run_compute <- function(N, output_dir = '.', total_seeds = 10000) {
     
     list_all_DTs[[DT_index]] <- dt_out
     list_all_TMLEs[[DT_index]] <- list_of_tmles
+    
+    # Save intermediate results for each SL combination
+    intermediate_time <- proc.time() - start_time
+    log_lines(
+      c('', paste0('Finished SLcomb=', paste(SL_lib_local, collapse = '_')))
+    )
+    log_lines('Execution time:', capture.output(intermediate_time))
+    log_lines(paste0('Memory usage: ', capture.output(pryr::mem_used())))
+    save(
+      SL_lib_local, dt_out, list_of_tmles,
+      file = file.path(
+        output_dir, 
+        paste0('r_out_', paste(SL_lib_local, collapse = '_'), '.RData')
+      )
+    )
+    
     DT_index <- DT_index + 1
   }
   
@@ -213,6 +226,7 @@ run_compute <- function(N, output_dir = '.', total_seeds = 10000) {
   
   run_time <- proc.time() - start_time
   log_lines(c('', 'Execution time:', capture.output(run_time)))
+  log_lines(paste0('Total memory usage: ', capture.output(pryr::mem_used())))
   
   # Close file connections, save workspace variables and done.
   close(log_file)

@@ -2,7 +2,7 @@
 # for Max's paper.
 #
 # Code author: Russell A. Edson, Biometry Hub
-# Date last modified: 03/03/2022
+# Date last modified: 29/03/2022
 
 ## Build atop Rocker r-ver:4.1.2
 FROM rocker/r-ver:4.1.2
@@ -14,7 +14,8 @@ RUN install2.r \
   SuperLearner \
   arm \
   rpart \
-  ranger
+  ranger \
+  pryr
 
 ## Make an ubuntu user and working directory
 RUN useradd -ms /bin/bash ubuntu
