@@ -207,8 +207,17 @@ run_compute <- function(N, output_dir = '.', total_seeds = 10000) {
     # add "sample size/data set" specific estimate
     dt_out <- cbind(ATE_hat, dt_out)
     
-    list_of_tmles <- lapply(list_out, `[[`, 'tmle')
-    
+    list_of_tmles <- lapply(
+      list_out, 
+      function(obj) {
+        tmle_obj <- obj[['tmle']]
+        if (is.null(tmle_obj)) {
+          obj
+        } else {
+          tmle_obj
+        }
+      }
+    )
     list_all_DTs[[DT_index]] <- dt_out
     list_all_TMLEs[[DT_index]] <- list_of_tmles
     
