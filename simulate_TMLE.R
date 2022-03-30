@@ -150,8 +150,7 @@ run_compute <- function(N, output_dir = '.', total_seeds = 10000) {
   )
   rm(
     ObsData_ALL, ObsData_local, m, sample_indices, vars_explanatory,
-    Q0W, Q1W, QAW, True_ATE, True_EY.0, True_EY.1, True_MOR, NN, ATE_hat,
-    MOR_hat, generateData
+    Q0W, Q1W, QAW, True_ATE, True_EY.0, True_EY.1, True_MOR, NN
   )
   
   # Get all combinations of Superlearners, used within tmle::tmle
