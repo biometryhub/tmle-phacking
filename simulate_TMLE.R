@@ -3,7 +3,7 @@
 # A tutorial. Statistics in medicine, 37(16), 2530-2546.
 #
 # Code authors: Max Moldovan, Russell Edson (Biometry Hub)
-# Date last modified: 29/03/2022
+# Date last modified: 30/03/2022
 
 # Loading all libraries (per VM)
 library(pryr)
@@ -89,33 +89,6 @@ tmle_rnd_seeds <- function(rnd_seeds = 1, Y, A, W, family_c = 'binomial', SL_lib
   output
 }
 
-# Parallelise random seeds over cores (restricting to a function in this
-# way (hopefully?) restricts the lexical scope that ends up copied to
-# each core)
-parallel_tmle_run <- function(rs_vec, Y, A, W, SL_lib_local, cores) {
-  list_out <- mclapply(
-    1:length(rs_vec), 
-    function(j) {
-      tryCatch({
-        tmle_rnd_seeds(rnd_seeds = rs_vec[j], Y = Y, A = A, W = W, 
-                       family = 'binomial', SL_lib = SL_lib_local,
-                       tab_out = 'BOTH')
-      },
-      error = function(c) {
-        list(
-          'ERROR', 
-          seed = rs_vec[j], 
-          Y = Y, A = A, W = W, SL_lib = SL_lib_local  
-        )
-      }
-      )
-    },
-    mc.cores = cores
-  )
-  
-  list_out
-}
-
 
 # Main function (pass ARGIN from shell script) #################################
 
@@ -150,17 +123,36 @@ run_compute <- function(N, output_dir = '.', total_seeds = 10000) {
   sample_indices <- sample(1:NN, N, replace = FALSE)
   ObsData_local <- ObsData_ALL[sample_indices, ]
   m <- glm(Y ~ A + w1 + w2 + w3 + w4, family = binomial, data = ObsData_local)
+  vars_explanatory <- c('w1', 'w2', 'w3', 'w4')
   
   #Prediction for A, A = 1 and, A = 0
   QAW <- predict(m, type = 'response')
-  Q1W <- predict(m, newdata = data.frame(A = 1, ObsData_local[,c('w1','w2','w3','w4')]), type = 'response') 
-  Q0W <- predict(m, newdata = data.frame(A = 0, ObsData_local[,c('w1','w2','w3','w4')]), type = 'response')
+  Q1W <- predict(m, newdata = data.frame(A = 1, ObsData_local[ ,..vars_explanatory]), type = 'response') 
+  Q0W <- predict(m, newdata = data.frame(A = 0, ObsData_local[ ,..vars_explanatory]), type = 'response')
   
   # Estimated mortality risk difference, Marginal Odds Ratio (MOR)
   ATE_hat <- mean(Q1W - Q0W)
   MOR_hat <- mean(Q1W)*(1 - mean(Q0W)) / ((1 - mean(Q1W))*mean(Q0W))
   log_lines(paste0('ATE_hat: ', ATE_hat))
   log_lines(paste0('MOR_hat: ', MOR_hat))
+  
+  # Y, A and W computed (to be distributed across parallel threads)
+  Y <- ObsData_local$Y
+  A <- ObsData_local$A
+  W <- ObsData_local[ , ..vars_explanatory]
+  
+  # Save and clear unneeded variables
+  save(
+    ObsData_ALL, ObsData_local, sample_indices, m, True_ATE, True_MOR,
+    vars_explanatory, True_EY.0, True_EY.1, Q0W, Q1W, QAW, NN, ATE_hat,
+    MOR_hat, Y, A, W,
+    file = file.path(output_dir, 'ObsData.RData')
+  )
+  rm(
+    ObsData_ALL, ObsData_local, m, sample_indices, vars_explanatory,
+    Q0W, Q1W, QAW, True_ATE, True_EY.0, True_EY.1, True_MOR, NN, ATE_hat,
+    MOR_hat, generateData
+  )
   
   # Get all combinations of Superlearners, used within tmle::tmle
   sl_libs_ALL <- SUPERLEARNERS
@@ -172,6 +164,7 @@ run_compute <- function(N, output_dir = '.', total_seeds = 10000) {
     mm <- mm + dim(list_comb_indx[[i]])[2]
   }
   log_lines(paste0('Number of unique SuperLearners: ', M))
+  log_lines(paste(sl_libs_ALL, collapse = ', '))
   log_lines(paste0('Number of SL combinations overall: ', mm))
   
   list_ALL_SLs <- vector('list', mm)
@@ -188,32 +181,45 @@ run_compute <- function(N, output_dir = '.', total_seeds = 10000) {
     }
   }
   
+  # Clear unneeded variables
+  rm(
+    list_comb_indx, i, j, index_set, index_vector, M, mm, SL_index,
+    SL_lib_local, SL_library_char_vec, sl_libs_ALL
+  )
+  
   # Pre-define random seeds to run through
-  KK <- total_seeds
   set.seed(RNG_SEED)
-  rs_vec <- sample(1:10000000, KK, replace = FALSE)
+  rs_vec <- sample(1:10000000, total_seeds, replace = FALSE)
   
   # Main loop computation (parallelised over multiple cores where possible)
-  cores <- CORES_NUM
   log_lines(paste0('Parallel cores avaliable: ', detectCores()))
-  log_lines(paste0('Parallel cores specified to be used: ', cores))
-  
-  vars_explanatory <- c('w1', 'w2', 'w3', 'w4')
-  list_all_DTs <- vector('list', mm)
-  list_all_TMLEs <- vector('list', mm)
-  DT_index <- 1
-  Y <- ObsData_local$Y
-  A <- ObsData_local$A
-  W <- ObsData_local[ , ..vars_explanatory]
+  log_lines(paste0('Parallel cores specified to be used: ', CORES_NUM))
   
   for (i in 1:length(list_ALL_SLs)) {
     SL_lib_local <- list_ALL_SLs[[i]]
     
-    gc()
-    list_out <- parallel_tmle_run(rs_vec, Y, A, W, SL_lib_local, cores)
+    # Parallelise random seeds over cores 
+    list_out <- mclapply(
+      1:length(rs_vec), 
+      function(j) {
+        tryCatch({
+          tmle_rnd_seeds(rnd_seeds = rs_vec[j], Y = Y, A = A, W = W, 
+                         family = 'binomial', SL_lib = SL_lib_local,
+                         tab_out = 'BOTH')
+        },
+        error = function(c) {
+          list(
+            'ERROR', 
+            seed = rs_vec[j], 
+            Y = Y, A = A, W = W, SL_lib = SL_lib_local  
+          )
+        })
+      },
+      mc.cores = CORES_NUM
+    )
+
     list_of_tabs <- lapply(list_out, `[[`, 'tab')
     dt_out <- rbindlist(list_of_tabs)
-    # add "sample size/data set" specific estimate
     dt_out <- cbind(ATE_hat, dt_out)
     
     list_of_tmles <- lapply(
@@ -227,13 +233,11 @@ run_compute <- function(N, output_dir = '.', total_seeds = 10000) {
         }
       }
     )
-    list_all_DTs[[DT_index]] <- dt_out
-    list_all_TMLEs[[DT_index]] <- list_of_tmles
     
     # Save intermediate results for each SL combination
     intermediate_time <- proc.time() - start_time
     log_lines(
-      c('', paste0('Finished SLcomb=', paste(SL_lib_local, collapse = '_')))
+      c('', paste0('Finished SLcomb=', i, '_', paste(SL_lib_local, collapse = '_')))
     )
     log_lines(paste0('Execution time:', capture.output(intermediate_time)))
     log_lines(paste0('Memory usage: ', capture.output(pryr::mem_used())))
@@ -241,11 +245,31 @@ run_compute <- function(N, output_dir = '.', total_seeds = 10000) {
       SL_lib_local, dt_out, list_of_tmles,
       file = file.path(
         output_dir, 
-        paste0('r_out_', paste(SL_lib_local, collapse = '_'), '.RData')
+        paste0(i,'_', paste(SL_lib_local, collapse = '_'), '.RData')
       )
     )
     
-    DT_index <- DT_index + 1
+    rm(dt_out, list_of_tmles)
+    gc()
+  }
+  
+  # Here at the end: read back in all the stored data and stitch
+  # the complete lists of data tables and TMLEs
+  # TODO: Actually is this even necessary? Do we want them in lists?
+  list_all_DTs <- vector('list', length(list_ALL_SLs))
+  list_all_TMLEs <- vector('list', length(list_ALL_SLs))
+  
+  for (i in 1:length(list_ALL_SLs)) {
+    SL_lib_local <- list_ALL_SLs[[i]]
+    load(
+      file.path(
+        output_dir, 
+        paste0(i,'_', paste(SL_lib_local, collapse = '_'), '.RData')
+      )
+    )
+    
+    list_all_DTs[[i]] <- dt_out
+    list_all_TMLEs[[i]] <- list_of_tmles
   }
   
   # Log session info and execution time
@@ -259,8 +283,7 @@ run_compute <- function(N, output_dir = '.', total_seeds = 10000) {
   # Close file connections, save all workspace variables and done.
   close(log_file)
   save(
-    list_all_DTs, list_all_TMLEs, SL_library_char_vec, True_ATE, True_MOR, 
-    ATE_hat, MOR_hat, ObsData_ALL, sample_indices, sl_libs_ALL, rs_vec, N, 
+    list_all_DTs, list_all_TMLEs, sl_libs_ALL, rs_vec, N, 
     session_info, RNG_SEED, total_seeds, SUPERLEARNERS, CORES_NUM,
     file = file.path(output_dir, 'r_out_ALL_outputs.RData')
   )
