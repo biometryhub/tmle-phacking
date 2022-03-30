@@ -89,6 +89,33 @@ tmle_rnd_seeds <- function(rnd_seeds = 1, Y, A, W, family_c = 'binomial', SL_lib
   output
 }
 
+# Parallelise random seeds over cores (restricting to a function in this
+# way (hopefully?) restricts the lexical scope that ends up copied to
+# each core)
+parallel_tmle_run <- function(rs_vec, Y, A, W, SL_lib_local, cores) {
+  list_out <- mclapply(
+    1:length(rs_vec), 
+    function(j) {
+      tryCatch({
+        tmle_rnd_seeds(rnd_seeds = rs_vec[j], Y = Y, A = A, W = W, 
+                       family = 'binomial', SL_lib = SL_lib_local,
+                       tab_out = 'BOTH')
+      },
+      error = function(c) {
+        list(
+          'ERROR', 
+          seed = rs_vec[j], 
+          Y = Y, A = A, W = W, SL_lib = SL_lib_local  
+        )
+      }
+      )
+    },
+    mc.cores = cores
+  )
+  
+  list_out
+}
+
 
 # Main function (pass ARGIN from shell script) #################################
 
@@ -182,26 +209,8 @@ run_compute <- function(N, output_dir = '.', total_seeds = 10000) {
   for (i in 1:length(list_ALL_SLs)) {
     SL_lib_local <- list_ALL_SLs[[i]]
     
-    # Parallelise random seeds over cores
-    list_out <- mclapply(
-      1:length(rs_vec), 
-      function(j) {
-        tryCatch({
-            tmle_rnd_seeds(rnd_seeds = rs_vec[j], Y = Y, A = A, W = W, 
-                           family = 'binomial', SL_lib = SL_lib_local,
-                           tab_out = 'BOTH')
-          },
-          error = function(c) {
-            list(
-              'ERROR', 
-              seed = rs_vec[j], 
-              Y = Y, A = A, W = W, SL_lib = SL_lib_local  
-            )
-          }
-        )
-      },
-      mc.cores = cores
-    )
+    gc()
+    list_out <- parallel_tmle_run(rs_vec, Y, A, W, SL_lib_local, cores)
     list_of_tabs <- lapply(list_out, `[[`, 'tab')
     dt_out <- rbindlist(list_of_tabs)
     # add "sample size/data set" specific estimate
@@ -247,7 +256,7 @@ run_compute <- function(N, output_dir = '.', total_seeds = 10000) {
   log_lines(c('', 'Execution time:', capture.output(run_time)))
   log_lines(paste0('Total memory usage: ', capture.output(pryr::mem_used())))
   
-  # Close file connections, save workspace variables and done.
+  # Close file connections, save all workspace variables and done.
   close(log_file)
   save(
     list_all_DTs, list_all_TMLEs, SL_library_char_vec, True_ATE, True_MOR, 
