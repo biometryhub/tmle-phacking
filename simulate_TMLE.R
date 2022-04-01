@@ -282,7 +282,7 @@ run_compute <- function(N, output_dir = '.', total_seeds = 10000) {
   # Close file connections, save all workspace variables and done.
   close(log_file)
   save(
-    list_all_DTs, list_all_TMLEs, sl_libs_ALL, rs_vec, N, 
+    list_all_DTs, list_all_TMLEs, rs_vec, N, 
     session_info, RNG_SEED, total_seeds, SUPERLEARNERS, CORES_NUM,
     file = file.path(output_dir, 'r_out_ALL_outputs.RData')
   )
