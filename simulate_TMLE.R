@@ -65,6 +65,9 @@ tmle_rnd_seeds <- function(rnd_seeds = 1, Y, A, W, family_c = 'binomial', SL_lib
   TMLE <- tmle(Y = Y, A = A, W = W, family = family_c, Q.SL.library = SL_lib, g.SL.library = SL_lib)
   exec_time <- proc.time() - ptm0
   
+  TMLE$g.Z <- NULL
+  TMLE$g.Delta <- NULL
+  
   # Check output requirement
   if (!tab_out %in% c('TAB', 'ALL', 'BOTH')) {
     stop('Invalid output type specified')
